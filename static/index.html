@@ -1,0 +1,834 @@
+<head></head>
+<style>
+    .main {
+       display: flex; 
+       flex-direction: column;
+       align-items: center;
+       flex:2;
+    }
+
+    .game_map {
+        padding: 40px;
+    }
+
+    .header {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin: 40px;
+        border-radius: 10px;
+        border: 2px solid #66ccff;
+        width: 40%;
+    }
+
+
+    .input-group input {
+        margin: 10px;
+        width: 400px;
+        height: 50px;
+    }
+
+
+    .input-group {
+        border-color: black;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    #add_line_up {
+        margin: 10px;
+        width: 200px;
+        height: 50px;
+        font-size: large;
+    }
+
+    #add_desc, #submit{
+        margin: 10px;
+        width: 200px;
+        height: 50px;
+        font-size: large;
+
+    }
+    #goback {
+        margin: 10px;
+        width: 200px;
+        height: 50px;
+        margin-right: 50px;
+        font-size: large;
+    }
+
+    #descs {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+    .desc_img {
+        width: 400px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+    .display-w {
+        display: none;
+
+    }
+    .display-w.active {
+        display: flex;
+        flex-direction: row;
+        position: relative;
+        align-items: center;
+        border-radius: 10px;
+        border: 2px solid #66ccff;
+    }
+    .sidebar {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin: 40px;
+        padding: auto;
+        width: 40%;
+    }
+    .place {
+        content: '';
+        position: absolute;
+        right: 33%;
+        width: 2px;
+        height: 100%;
+        background-color: #66ccff;
+    }
+    select {
+        margin: 40px;
+        width: 100px;
+        height: 50px;
+    }
+    .close-button {
+        width: 50px;
+        height: 50px;
+    }
+    #remove-lineup {
+        width: 50px;
+        height: 70px;
+    }
+    .lineup-w {
+        display: none;
+    }
+    .lineup-w.active {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+    .lineup-header {
+        display: flex;
+        align-items: flex-start;
+    }
+    .lineup-w img {
+        max-width: 80%;
+    }
+    #lineup-desc {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+</style>
+<body>
+    <!-- 选择界面 -->
+    <div class="page display-w active">
+        <div class="main">
+            <div class="game_map">
+                <canvas id="map">
+                </canvas>
+            </div>
+        </div>
+        <div class="place"></div>
+        <div class="sidebar">
+            <div class="selector">
+                <span>地图:</span>
+                <select name="maps" id="maps">
+                </select>
+                <span>英雄:</span>
+                <select name="heros" id="heros">
+                </select>
+                <span>技能:</span>
+                <select name="skills" id="skills">
+                </select>
+            </div>
+            <button id="add_line_up">添加起始点和终点</button>
+            <p id="explain"></p>
+            <div id="descs"></div>
+            <button id="add_desc">添加图片及描述</button>
+            <button id="submit">提交</button>
+        </div>
+    </div>
+
+    <!-- lineup 详情界面 -->
+    <div class="page lineup-w">
+        <h1>lineup</h1>
+        <div class="lineup-header">
+            <button id="goback"> 返回 </button>
+            <img id="remove-lineup" src="./assets/remove.svg">
+        </div>
+        <div id="lineup-desc">
+        </div> 
+    </div>
+
+    <script>
+            const canvas = document.getElementById("map")
+            const addButton = document.getElementById("add_line_up")
+            const addDescButton = document.getElementById("add_desc")
+            const submitButton = document.getElementById("submit")
+            const explain_text = document.getElementById("explain")
+
+            var selectedStartPoint = {}, selectedEndPoint = {};
+            var heros = [];
+            var maps= [];
+            var skills = [];
+            var lineups = [];
+            var filteredLineUps = [];
+
+            const img = new Image()
+
+            document.addEventListener('paste', function(event) {
+
+                var items = (event.clipboardData || windows.clipboardData).items;
+                var file = null;
+                if (items && items.length) {
+                    for (let i = 0; i < items.length; i++) {
+                        if (items[i].type.indexOf('image') !== -1)  {
+                            file = items[i].getAsFile();
+                            break;
+                        }
+                    }
+                }
+                console.log(file)
+
+                if (file === null)  {
+                    return 
+                }
+
+                const fileInputGroups = document.querySelectorAll('#descs .input-group');
+
+                for (let i = 0 ; i < fileInputGroups.length; i++) { 
+                    let inputGroup = fileInputGroups[i]
+                    if (inputGroup.file === undefined) {
+                        inputGroup.file = file
+                        let imgNode = inputGroup.querySelectorAll('.desc_img')[0]
+
+                        var reader = new FileReader()
+                        reader.onload = function(event) {
+                            imgNode.innerHTML = '<img src="' + event.target.result + '" width=400px>'
+                        }
+                        reader.readAsDataURL(file)
+                        return
+                    }
+                }
+            })
+
+            function newCloseButton() {
+                const closeButton = document.createElement('img');
+                closeButton.src = "./assets/close.svg"
+                closeButton.className = "close-button"
+
+                return closeButton
+            }
+
+            addDescButton.onclick = () => {
+                const newInputGroup = document.createElement('div');
+                newInputGroup.className = 'input-group'
+
+                const textInput = document.createElement('input');
+                textInput.type = 'text';
+                textInput.placeholder = '输入描述...'
+
+                const closeButton = newCloseButton();
+
+                const inputImg = document.createElement('div');
+                inputImg.className = 'desc_img'
+
+                newInputGroup.appendChild(textInput);
+                newInputGroup.appendChild(inputImg);
+                newInputGroup.appendChild(closeButton);
+
+                document.getElementById('descs').appendChild(newInputGroup);
+
+                closeButton.onclick = () => {
+                    document.getElementById('descs').removeChild(newInputGroup)
+                }
+            }
+
+            function submitLineUp() {
+                console.log("start:", selectedStartPoint, "end:", selectedEndPoint)
+
+                let form = new FormData();
+                const fileInputGroups = document.querySelectorAll('#descs .input-group');
+
+                fileInputGroups.forEach((element) => {
+                    console.log("element:", element.file)
+                    console.log("text element:", element.getElementsByTagName('input')[0].value)
+                    form.append("images", element.file)
+                    form.append("descs", element.getElementsByTagName('input')[0].value)
+                })
+
+                // form.append("start_point", JSON.stringify(selectedStartPoint))
+                // form.append("end_point", JSON.stringify(selectedEndPoint))
+                form.append("start_point", selectedStartPoint.x)
+                form.append("start_point", selectedStartPoint.y)
+                form.append("end_point", selectedEndPoint.x)
+                form.append("end_point", selectedEndPoint.y)
+                // form.append("end_point", JSON.stringify(selectedEndPoint))
+
+                const mapSelector = document.getElementById("maps")
+                const heroSelector = document.getElementById("heros")
+                const skillSelector = document.getElementById("skills")
+
+                form.append("map", mapSelector.options[mapSelector.selectedIndex].text)
+                form.append("hero", heroSelector.options[heroSelector.selectedIndex].text)
+                form.append("skill", skillSelector.options[skillSelector.selectedIndex].text)
+                console.log(mapSelector.options[mapSelector.selectedIndex].text)
+                console.log(heroSelector.options[heroSelector.selectedIndex].text)
+                console.log(skillSelector.options[skillSelector.selectedIndex].text)
+
+                fetch('/lineups', {
+                    method: "POST",
+                    body: form,
+                }).then((resp) => {
+                    console.log("create resp:", resp)
+
+                    
+                    state = 0;
+                    selectedStartPoint = {}
+                    selectedEndPoint = {}
+                    addButton.innerText = "添加 lineup"
+                    explain_text.innerText = ""
+                    descs.innerHTML = ""
+                    redraw()
+                    window.alert("创建成功")
+                }).catch((err) => {
+                    window.alert("create lineup error:", err)
+                })
+            }
+
+            submitButton.onclick = () => {
+                // 选择完第二个点
+                if (state == 3) {
+                    submitLineUp()
+                } else {
+                    window.alert("请选择完 line up 点位之后再提交")
+                }
+            }
+
+            var transferPointToCanvas;
+            var transferPointBackToMap;
+            var ctx = canvas.getContext("2d");
+            var state = 0; // 0 for view 1 for lineup add
+
+
+            function drawLineUps() {
+                // only draw line-ups thats filtered
+                // get all points
+                startPoints = []
+                endPoints = []
+                for (let i = 0; i < filteredLineUps.length; i++) {
+                    lineup = filteredLineUps[i]
+                    startPoints.push(lineup.start)
+                    endPoints.push(lineup.end)
+                }
+                startPoints = [...new Set(startPoints.map(JSON.stringify))].map(JSON.parse)
+                endPoints = [...new Set(endPoints.map(JSON.stringify))].map(JSON.parse)
+                console.log(startPoints)
+                console.log(endPoints)
+
+                // draw points
+                for (let i = 0; i < startPoints.length; i++) {
+                    point = transferPointToCanvas(startPoints[i]);
+                    ctx.beginPath()
+                    ctx.arc(point.x, point.y, radius, 0, 2 * Math.PI);
+                    ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+                    ctx.fill()
+                }
+
+                for (let i = 0; i < endPoints.length; i++) {
+                    point = transferPointToCanvas(endPoints[i]);
+                    ctx.beginPath()
+                    ctx.arc(point.x, point.y, radius, 0, 2 * Math.PI);
+                    ctx.fillStyle = 'rgba(0, 255, 0, 0.5)';
+                    ctx.fill()
+                }
+                // draw lines
+
+                for (let i = 0; i < filteredLineUps.length; i++) {
+                    lineup = filteredLineUps[i];
+
+                    ctx.setLineDash([10, 5]);
+                    ctx.strokeStyle = 'yellow';
+                    ctx.lineWidth = 2;
+
+                    ctx.beginPath();
+                    sp = transferPointToCanvas(lineup.start)
+                    ep = transferPointToCanvas(lineup.end)
+                    ctx.moveTo(sp.x, sp.y);
+                    ctx.lineTo(ep.x, ep.y);
+                    ctx.stroke();
+                }
+            }
+
+            function drawSelectPoints() {
+                startPoints = []
+                endPoints = []
+                for (let i = 0; i < lineups.length; i++) {
+                    lineup = lineups[i]
+                    startPoints.push(lineup.start)
+                    endPoints.push(lineup.end)
+                }
+                startPoints = [...new Set(startPoints.map(JSON.stringify))].map(JSON.parse)
+                endPoints = [...new Set(endPoints.map(JSON.stringify))].map(JSON.parse)
+                console.log(startPoints)
+                console.log(endPoints)
+
+                // draw points
+                for (let i = 0; i < startPoints.length; i++) {
+                    point = transferPointToCanvas(startPoints[i]);
+                    ctx.beginPath()
+                    ctx.arc(point.x, point.y, radius, 0, 2 * Math.PI);
+                    ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+                    ctx.fill()
+                }
+
+                for (let i = 0; i < endPoints.length; i++) {
+                    point = transferPointToCanvas(endPoints[i]);
+                    ctx.beginPath()
+                    ctx.arc(point.x, point.y, radius, 0, 2 * Math.PI);
+                    ctx.fillStyle = 'rgba(0, 255, 0, 0.5)';
+                    ctx.fill()
+                }
+
+                // draw selected points
+
+                if (JSON.stringify(selectedStartPoint) !== "{}")  {
+                    point = transferPointToCanvas(selectedStartPoint);
+                    ctx.beginPath()
+                    ctx.arc(point.x, point.y, radius, 0, 2 * Math.PI);
+                    ctx.fillStyle = 'rgba(255, 0, 0, 1)';
+                    ctx.fill()
+                }
+                if (JSON.stringify(selectedEndPoint) !== "{}")  {
+                    point = transferPointToCanvas(selectedEndPoint);
+                    ctx.beginPath()
+                    ctx.arc(point.x, point.y, radius, 0, 2 * Math.PI);
+                    ctx.fillStyle = 'rgba(0, 255, 0, 1)';
+                    ctx.fill()
+                }
+
+                ctx.setLineDash([10, 5]);
+                ctx.strokeStyle = 'yellow';
+                ctx.lineWidth = 2;
+
+                ctx.beginPath();
+                sp = transferPointToCanvas(selectedStartPoint)
+                ep = transferPointToCanvas(selectedEndPoint)
+                ctx.moveTo(sp.x, sp.y);
+                ctx.lineTo(ep.x, ep.y);
+                ctx.stroke();
+            }
+
+            var points = [];
+            const radius = 15;
+            let drawWidth, drawHeight, drawX, drawY;
+
+            canvas.width = window.innerWidth * 0.6;
+            canvas.height = window.innerHeight * 0.8;
+
+            img.onload = function() {
+                console.log("img onload, url:", img.src);
+                const imgAspectRatio = img.width / img.height
+                var scaleRatio = 0;
+                const canvasAspectRatio = canvas.width / canvas.height;
+
+                if (imgAspectRatio > canvasAspectRatio) {
+                    drawWidth = canvas.width;
+                    drawHeight = canvas.width / imgAspectRatio;
+                    scaleRatio = drawWidth / img.width;
+                    drawX=0
+                    drawY = (canvas.height - drawHeight) / 2;
+                    transferPointToCanvas = (point) => {
+                        return {
+                            x: point.x * scaleRatio,
+                            y: point.y * scaleRatio + (canvas.height - drawHeight) / 2
+                        }
+                    }
+                    transferPointBackToMap = (point) => {
+                        return {
+                            x: point.x / scaleRatio,
+                            y: (point.y - (canvas.height - drawHeight) / 2) / scaleRatio
+                        }
+                    }
+                } else {
+                    drawWidth = canvas.height * imgAspectRatio;
+                    drawHeight = canvas.height;
+                    scaleRatio = drawHeight / img.height;
+                    drawX = (canvas.width - drawWidth) / 2;
+                    drawY = 0;
+                    transferPointToCanvas = (point) => {
+                        return {
+                            x: point.x * scaleRatio + (canvas.width - drawWidth) / 2,
+                            y: point.y * scaleRatio
+                        }
+                    }
+                    transferPointBackToMap = (point) => {
+                        return {
+                            x: (point.x - (canvas.width - drawWidth) / 2) / scaleRatio,
+                            y: point.y / scaleRatio
+                        }
+                    }
+                }
+                ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
+                drawLineUps();
+            }
+
+            async function getLineups(queryParam) {
+                console.log("get lineups of  ", queryParam)
+                const baseUrl = window.location.origin;
+                const url = new URL(baseUrl + '/lineups');
+                const searchParam = new URLSearchParams(queryParam);
+                url.search = searchParam.toString();
+                console.log(url)
+
+                try {
+                    const response = await fetch(url)
+                    const resp = await response.json();
+                    if (resp.status === 400) {
+                        throw(new Error("bad request:" + resp.body.json().error))
+
+                    }
+                    console.log("lineups", resp.data);
+                    lineups = resp.data;
+                    console.log(heros)
+
+                    filteredLineUps = lineups.slice()
+                    redraw()
+                    // drawLineUps()
+
+                } catch(err) {
+                    console.log(err)
+
+                }
+            }
+
+            async function doHeroChange(hero) {
+                const skillSelector = document.getElementById("skills")
+                skillSelector.innerHTML = ''
+                hero.skills.forEach(skill => {
+                    const option = document.createElement('option')
+                    option.value = skill
+                    option.text = skill
+                    skillSelector.appendChild(option)
+                })
+
+                await doLineUpsChange()
+            }
+
+            async function getHeros() {
+                try {
+                    const response = await fetch('/heros')
+                    const resp = await response.json();
+                    console.log("heros:", resp.data);
+                    heros = resp.data;
+                    console.log(heros)
+
+                    const heroSelector = document.getElementById("heros")
+                    heroSelector.innerHTML = ''
+                    heros.forEach(hero => {
+                        const option = document.createElement('option')
+                        option.hero = hero
+                        option.value = hero.name
+                        option.text = hero.name
+                        heroSelector.appendChild(option)
+                    })
+                    await doHeroChange(heros[0])
+                } catch(err) {
+                    console.log("get heroes error", err)
+                }
+            }
+
+            async function doLineUpsChange() {
+                try {
+                    const mapSelector = document.getElementById("maps")
+                    const heroSelector = document.getElementById("heros")
+                    const skillSelector = document.getElementById("skills")
+
+                    curHero = heroSelector.options[heroSelector.selectedIndex].text
+                    curMap = mapSelector.options[mapSelector.selectedIndex].text
+                    curSkill = skillSelector.options[skillSelector.selectedIndex].text
+                    await getLineups({hero:curHero, map:curMap, skill:curSkill})
+                } catch(err) {
+                    console.log("do lineups change error", err.message)
+                }
+            }
+
+            async function doMapChange(map) {
+                const byteArray = new Uint8Array(map.image.data);
+                let blob = new Blob([byteArray], { type: 'image/png'});
+                const url = URL.createObjectURL(blob) 
+                img.src = url
+                await doLineUpsChange()
+            }
+            // 获取地图
+            async function getMaps() {
+                try {
+                    const response = await fetch('/maps');
+                    const resp = await response.json();
+                    console.log("data:", resp.data);
+                    maps = resp.data                    
+                    const mapSelector = document.getElementById("maps")
+                    mapSelector.innerHTML = ''
+                    maps.forEach(map => {
+                        const option = document.createElement('option')
+                        option.value = map.name
+                        option.map = map
+                        option.text = map.name
+                        mapSelector.appendChild(option);
+                    });
+
+                    await doMapChange(maps[0])
+                } catch (err) {
+                    console.log(err)
+                }
+            }
+
+            async function removeLineup(lineup) {
+                console.log(lineup)
+                const resp = await fetch(`/lineups/${lineup._id}`, {method: "DELETE"})
+                if (resp.status != 200) {
+                    throw(new Error("调用 api 失败:" + resp.json().error))
+                }
+                return
+            }
+
+            async function getLineupDetail(lineup) {
+                if (lineup.descs !== undefined) {
+                    return lineup
+                }
+                try {
+                    const response = await fetch(`/lineups/${lineup._id}`)
+                    if (response.status != 200) {
+                        throw(new Error("调用 api 失败:" + resp.json().error))
+                    }
+                    const resp = await response.json()
+                    lineup.descs = resp.lineup.descs
+                    return lineup
+                } catch (err) {
+                    console.log(err)
+                    return 
+                }
+            }
+
+            addButton.onclick = function() {
+                if (state == 0) {
+                    state = 1;
+                    addButton.innerText = "取消"
+                    explain_text.innerText = "点击地图选择添加的 lineup 的第一个点"
+                    console.log(state)
+
+                } else {
+                    state = 0;
+                    selectedStartPoint = {}
+                    selectedEndPoint = {}
+                    addButton.innerText = "添加 lineup"
+                    explain_text.innerText = ""
+                    console.log(state)
+                }
+                redraw();
+            }
+
+            function redraw() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height)
+                ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
+                if (state == 0) {
+                    drawLineUps();
+                } else {
+                    drawSelectPoints();
+                }
+            }
+
+            function clickOnPoint(x, y, point) {
+                p2 = {x, y}
+                p1=transferPointToCanvas(point)
+                if (Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2) <= Math.pow(radius, 2)) {
+                    return true
+                }
+                return false
+            }
+          
+            function getClickPointInFilteredLineUps(x, y)  {
+                for (let i = 0; i < filteredLineUps.length; i++) {
+                    lineup = filteredLineUps[i]
+                    if (clickOnPoint(x, y,lineup.start)) {
+                        return lineup.start
+                    }
+                    if (clickOnPoint(x, y, lineup.end)) {
+                        return lineup.end
+                    }
+                }
+                return {}
+            }
+
+            function getClickPoint(x, y) {
+                for (let i = 0; i < lineups.length; i++) {
+                    lineup = lineups[i]
+                    if (clickOnPoint(x, y, lineup.start)) {
+                        return lineup.start
+                    }
+                    if (clickOnPoint(x, y, lineup.end)) {
+                        return lineup.end
+                    }
+                }
+                return transferPointBackToMap({x, y})
+            }
+
+            function generateImgElement(buffer) {
+                const byteArray = new Uint8Array(buffer);
+                let blob = new Blob([byteArray], {type:'image/png'});
+                const url = URL.createObjectURL(blob);
+
+                const imageElement = document.createElement("img")
+                imageElement.src = url
+                return imageElement
+            }
+
+            function route(dest) {
+                const pages = document.querySelectorAll(".page")
+                console.log(pages);
+                pages.forEach(page=> {
+                    page.classList.remove("active")
+                    console.log(page)
+                })
+
+                const windowElement = document.getElementsByClassName(dest)[0]
+
+                if (dest === "lineup-w") {
+                    state = 4;
+
+                    const lineupDescElement = document.getElementById("lineup-desc")
+                    lineupDescElement.innerHTML = ""
+                    const lineup = filteredLineUps[0]
+
+                    getLineupDetail(lineup).then((lineup) => {
+                        lineup.descs.forEach(desc => {
+                            if (desc.text !== "") {
+                                const pElement = document.createElement("p");
+                                pElement.textContent = desc.text
+                                lineupDescElement.appendChild(pElement)
+                            }
+                            lineupDescElement.appendChild(generateImgElement(desc.image.data))
+                        })
+                    }).catch (err => {
+                        console.log(err)
+                    })
+
+
+                }
+                if (dest === "display-w") {
+                    state = 0;
+                    filteredLineUps = lineups.slice()
+                    redraw();
+                }
+
+                windowElement.classList.add("active") 
+            }
+
+            canvas.addEventListener('click', (event)=> {
+                const rect = canvas.getBoundingClientRect();
+                const x = event.clientX - rect.left;
+                const y = event.clientY - rect.top;
+
+                switch (state) {
+                    // click to filter line up 
+                    case 0:
+                        point = getClickPointInFilteredLineUps(x, y)
+                        if (JSON.stringify(point) === "{}") {
+                            filteredLineUps = lineups.slice();
+                            break;
+                        }
+
+                        filteredLineUps = filteredLineUps.filter(function(lineup) {
+                            return JSON.stringify(lineup.start) === JSON.stringify(point) || JSON.stringify(lineup.end) === JSON.stringify(point);
+                        })
+
+                        if (filteredLineUps.length == 1) {
+                            console.log("you got it:", filteredLineUps);
+                            route("lineup-w")
+                            // window.location.href=filteredLineUps[0].url;
+                        }
+
+                        break;
+                    case 1:
+                        selectedStartPoint = getClickPoint(x, y)
+                        state = 2;
+                        explain_text.innerText = "点击地图选择添加的 lineup 的第二个点"
+                        console.log(state)
+                        break;
+                    case 2:
+                        selectedEndPoint = getClickPoint(x, y)
+                        state = 3;
+                        explain_text.innerText = "添加 lineup 描述，添加完后点击提交"
+                        console.log(state)
+                        break;
+                    default: 
+                        break;
+                }
+                redraw()
+            })
+
+            // lineup-w goback 
+            document.getElementById("goback").onclick = () => {
+                route("display-w")
+            }
+            // lineup-w remove
+            document.getElementById("remove-lineup").onclick = () => {
+                const lineup = filteredLineUps[0]
+                console.log(lineup)
+                if (!window.confirm("你确定要删除当前 lineup 吗？")) {
+                    return
+                }
+
+                // going to remove
+                removeLineup(lineup).then(() => {
+                    lineups = lineups.filter(l => {
+                        return l._id != lineup._id
+                    })
+                    route("display-w")
+                }).catch(err => {
+                    window.alert("删除失败："+ err.message)
+                })
+            }
+
+            document.getElementById("heros").addEventListener('change', (event) => {
+                const s = event.target;
+                const option = s.options[s.selectedIndex];
+                const hero = option.hero;
+
+                doHeroChange(hero)
+            } )
+
+            document.getElementById("skills").addEventListener('change', (event) => {
+                const skill = event.target.value;
+                console.log("select skill", skill)
+                doLineUpsChange()
+            } )
+
+            document.getElementById("maps").addEventListener('change', (event) => {
+                const s = event.target;
+                const option = s.options[s.selectedIndex];
+                const map = option.map;
+
+                console.log("select map", option.map)
+                doMapChange(map)
+            } )
+
+            getMaps()
+            getHeros()
+
+        </script>
+</body>
