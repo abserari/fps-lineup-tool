@@ -258,7 +258,7 @@
                 }
             }
 
-            function submitLineUp() {
+            async function submitLineUp() {
                 console.log("start:", selectedStartPoint, "end:", selectedEndPoint)
 
                 let form = new FormData();
@@ -290,13 +290,21 @@
                 console.log(heroSelector.options[heroSelector.selectedIndex].text)
                 console.log(skillSelector.options[skillSelector.selectedIndex].text)
 
-                fetch('/lineups', {
-                    method: "POST",
-                    body: form,
-                }).then((resp) => {
-                    console.log("create resp:", resp)
+                try {
+                    const response = await fetch('/lineups', {
+                        method: "POST",
+                        body: form,
+                    })
+                    const resp  = await response.json()
+                    if (response.status !== 200) {
+                        throw(new Error("create lineup error:" + resp.error))
+                    }
 
-                    
+                    console.log(resp)
+
+                    lineups.push(resp.lineup)
+                    filteredLineUps = lineups.slice()
+
                     state = 0;
                     selectedStartPoint = {}
                     selectedEndPoint = {}
@@ -305,9 +313,9 @@
                     descs.innerHTML = ""
                     redraw()
                     window.alert("创建成功")
-                }).catch((err) => {
-                    window.alert("create lineup error:", err)
-                })
+                } catch (err) {
+                    window.alert(err.message)
+                }
             }
 
             submitButton.onclick = () => {
