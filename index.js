@@ -24,7 +24,8 @@ const map = require('./controllers/map');
 const upload = multer({storage: multer.memoryStorage()})
 
 app.use(bodyParser.json());
-app.use('/home', express.static('./static'))
+app.use('/home', express.static('./static/home'))
+app.use('/manage', express.static('./static/manage'))
 
 app.get('/heros', hero.index)
 app.post('/heros', hero.create)

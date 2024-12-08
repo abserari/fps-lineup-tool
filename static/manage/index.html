@@ -1,0 +1,354 @@
+<head></head>
+<style>
+    .map-list {
+        width: 60%;
+        --min: 400px;
+        --gap: 1rem;
+        display: grid;
+        gap: var(--gap);
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--min)), 1fr));
+        /* grid-template-columns: repeat(auto-fit, 1fr); */
+    }
+    .main, .map, .hero{
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 100%;
+    }
+    .map-item {
+        margin: 2ch;
+        border: 1px;
+    }
+    .map-img {
+        width: 400px;
+    }
+    #add-map-window,#add-hero-window{
+        display: flex;
+        align-items: center;
+        flex-direction: column;
+        margin: 40px;
+    }
+    #add-map-button,#add-hero-button{
+        margin: 10px;
+        width: 200px;
+        height: 50px;
+        font-size: large;
+    }
+    #add-map-image {
+        border: 2px solid #66ccff;
+        
+        width: 400px;
+        height: 200px;
+    }
+
+    #add-map-image.active{
+        height: auto;
+    }
+
+    #hero-list {
+        width: 60%;
+        --min: 200px;
+        --gap: 1rem;
+        display: grid;
+        gap: var(--gap);
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--min)), 1fr));
+        /* grid-template-columns: repeat(auto-fit, 1fr); */
+    }
+
+    .hero-item {
+        border: #66ccff solid 2px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        flex-direction: column;
+        overflow: auto;
+        width: 200px;
+        height: 300px;
+    }
+    .add-skill-button {
+        margin: 10px;
+    }
+
+</style>
+
+<body>
+    <div class="main">
+        <div class="hero">
+            <h1>英雄</h1>
+            <div id="add-hero-window"> 
+                <h2>新建英雄</h2>
+                <h3>英雄名称</h3>
+                <input type="text" id="add-hero-name">
+                <button id="add-hero-button">添加英雄</button>
+            </div>
+            <h2>英雄列表</h2>
+            
+            <div id="hero-list">
+                
+
+            </div>
+        </div>
+        <div class="map">
+            <h1>地图</h1>
+            <div id="add-map-window">
+                <h2>上传地图</h2>
+                <h3>地图名称</h3>
+                <input type="text" id="add-map-name">
+                <h3>地图</h3>
+                <img id="add-map-image" alt="粘贴以上传地图图片">
+                <button id="add-map-button">添加地图</button>
+            </div>
+            <h2>地图列表</h2>
+
+            <div class="map-list" id="map-list">
+             
+            </div>
+        </div>
+    </div>
+    <script>
+        var maps = [];
+
+        document.addEventListener('paste', (event) => {
+            var items = (event.clipboardData || windows.clipboardData).items
+            var file = null;
+            if (items && items.length) {
+                for (let i = 0; i < items.length; i++) {
+                    if (items[i].type.indexOf('image') !== -1) {
+                        file = items[i].getAsFile();
+                    }
+                }
+            }
+
+            console.log("map file name:", file)
+
+            if (file === null) { 
+                return
+            }
+
+            let reader = new FileReader()
+            let imgNode = document.getElementById('add-map-image')
+            
+            reader.onload = (event) => {
+                imgNode.classList.add("active")
+                imgNode.src = event.target.result
+                imgNode.value = file
+            }
+            reader.readAsDataURL(file)
+        })
+
+        const addMapImgNode = document.getElementById('add-map-image')
+        document.getElementById('add-map-image').onclick = () => {
+            addMapImgNode.src = ''
+            addMapImgNode.classList.remove("active")
+        }
+
+        const addMapButton = document.getElementById("add-map-button")
+        addMapButton.onclick = async function(){
+            const mapForm = new FormData()
+            const nameNode = document.getElementById("add-map-name")
+            if (nameNode.value === '') {
+                window.alert("填写添加的地图名称")
+                return
+            }
+
+            const imgNode = document.getElementById('add-map-image')
+            if (!imgNode.classList.contains('active')) {
+                window.alert('粘贴以上传地图图片')
+                return
+            }
+
+            mapForm.append("name", nameNode.value)
+            mapForm.append("image", imgNode.value)
+
+            try {
+                const response = await fetch('/maps', {
+                    method: "POST",
+                    body: mapForm,
+                })
+                const resp = await response.json()
+                if (response.status !== 200) {
+                    throw (new Error("create map error:" + resp.error))
+                }
+
+                console.log(resp)
+                maps.push(resp.map)
+                document.getElementById("map-list").appendChild(getMapElement(resp.map))
+                window.confirm("上传成功")
+
+                imgNode.src = ''
+                imgNode.classList.remove("active")
+                mapNode.value = ''
+            } catch (err) {
+                window.alert(err.message)
+            }
+        }
+        const addHeroButton = document.getElementById("add-hero-button")
+        addHeroButton.onclick = async function() {
+            const nameNode = document.getElementById("add-hero-name")
+            if (nameNode.value === "") {
+                window.alert("填写英雄名称")
+                return
+            }
+            data = {
+                name: nameNode.value
+            }
+            try {
+                const response = await fetch('/heros', {
+                    method: "POST",
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body:  JSON.stringify(data)
+                })
+                const resp = await response.json()
+                if (response.status !== 200) {
+                    throw (new Error("create hero error:" + resp.error))
+                }
+                heros.push(resp.data)
+                document.getElementById("hero-list").appendChild(getHeroElement(resp.data))
+                window.confirm("创建成功")
+
+                nameNode.value = ''
+            } catch (err) {
+                window.alert(err.message)
+            }
+        } 
+        
+
+        function getMapElement(map) {
+            const item = document.createElement('div')
+            item.className = "map-item"
+
+            const img = document.createElement('img');
+            const byteArray = new Uint8Array(map.image.data);
+            const blob = new Blob([byteArray], {type: 'image/png'});
+            const url  = URL.createObjectURL(blob);
+            img.src = url
+            img.className = "map-img"
+
+            item.appendChild(img)
+
+
+            const txt = document.createElement('p')
+            txt.innerText = map.name
+            item.appendChild(txt)
+
+            return item
+        }
+
+        function getSkillItem(skill) {
+            const skillItem = document.createElement('li')
+            skillItem.innerText = skill
+            // const removeSkillItem = document.createElement('button')
+            // removeSkillItem.innerText = "删除"
+            // skillItem.appendChild(removeSkillItem)
+            return skillItem
+        }
+
+        function getHeroElement(hero) {
+            const item = document.createElement('div')
+            item.classList.add("hero-item")
+            const nameItem = document.createElement('h2')
+            nameItem.innerText = hero.name
+            item.appendChild(nameItem)
+
+            const skillName = document.createElement('input')
+            skillName.type = "text"
+            item.appendChild(skillName)
+
+            const addSkillButton =document.createElement('button')
+            addSkillButton.classList.add("add-skill-button")
+            addSkillButton.innerText = "添加技能"
+
+
+            item.appendChild(addSkillButton)
+            const skillNameItem = document.createElement('h3')
+            skillNameItem.innerText = "技能名称"
+            item.appendChild(skillNameItem)
+
+            const skillListItem = document.createElement('ul')
+            skillListItem.classList.add("hero-skills")
+            item.appendChild(skillListItem)
+
+            hero.skills.forEach(element => {
+                skillListItem.appendChild(getSkillItem(element))
+            })
+
+            addSkillButton.onclick = async function () {
+                if (skillName.value === '') {
+                    window.alert("填写技能名称")
+                    return
+                }
+
+                try {
+                    const data = {
+                        hero: hero.name,
+                        skill: skillName.value
+                    }
+                    const response = await fetch('/hero-skills', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(data)
+                    })
+                    const resp = await response.json()
+                    if (response.status !== 200) {
+                        throw (new Error("create skill error:" + resp.error))
+                    }
+                    skillListItem.appendChild(getSkillItem(skillName.value))
+
+                    skillName.value = ''
+                    window.confirm("添加成功")
+                } catch (err) {
+                    window.alert(err.message)
+                }
+                
+            } 
+            return item
+        }
+
+        async function getMaps() {
+            try {
+                const response = await fetch('/maps');
+                const resp = await response.json();
+                console.log("data:", resp.data);
+                maps = resp.data                    
+
+                const list = document.getElementById("map-list")
+                list.innerHTML = ''
+                maps.forEach(element => {
+                    list.appendChild(getMapElement(element))
+                });
+            } catch (err) {
+                console.log(err)
+            }
+            
+        }
+
+        async function getHeros() {
+            try {
+                const response = await fetch('/heros')
+                const resp = await response.json()
+                console.log("data:", resp.data)
+                heros = resp.data
+
+                const list = document.getElementById("hero-list")
+                list.innerHTML = ''
+                heros.forEach(element => {
+                    list.appendChild(getHeroElement(element))
+                })
+
+            } catch (err) { 
+                console.log(err)
+
+            }
+
+        }
+
+        getMaps()
+        getHeros()
+    </script>
+
+
+</body>

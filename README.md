@@ -17,17 +17,14 @@ npm install
 npm run start
 ```
 
-前端访问地址: `http://localhost:${PORT}/home`
+lineup 访问地址: `http://localhost:${PORT}/home`
+英雄地图管理界面:  `http://localhost:${PORT}/manage`
 
 ## 使用
 
-### 初始化
+### 添加地图，英雄，技能
 
-调用 `index.js` 中包含的 api 完成
-
-- 初始化添加地图
-- 初始化添加英雄
-- 初始化添加英雄技能
+在英雄地图管理界面进行操作
 
 ### 添加 lineup
 
@@ -50,4 +47,4 @@ npm run start
 ## todo
 
 - [ ] 自动生成的 api doc
-- [ ] 管理页面用于管理英雄地图和技能
+- [*] 管理页面用于管理英雄地图和技能

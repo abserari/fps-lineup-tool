@@ -8,8 +8,8 @@ const only = require('only');
 
 exports.list = async(function*(req, res) {
     console.log(req.query);
-    const lineups = yield Map.list(req.query);
-    res.status(200).send({data: lineups});
+    const maps = yield Map.list(req.query);
+    res.status(200).send({data: maps});
 })
 
 exports.create = async(function*(req, res) {
