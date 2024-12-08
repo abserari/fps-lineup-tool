@@ -47,4 +47,4 @@ lineup 访问地址: `http://localhost:${PORT}/home`
 ## todo
 
 - [ ] 自动生成的 api doc
-- [-] 管理页面用于管理英雄地图和技能
+- [ ] 管理页面用于管理英雄地图和技能
