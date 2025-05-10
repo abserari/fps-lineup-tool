@@ -695,13 +695,9 @@
                 return transferPointBackToMap({x, y})
             }
 
-            function generateImgElement(buffer) {
-                const byteArray = new Uint8Array(buffer);
-                let blob = new Blob([byteArray], {type:'image/png'});
-                const url = URL.createObjectURL(blob);
-
+            function generateImgElement(base64String) {
                 const imageElement = document.createElement("img")
-                imageElement.src = url
+				imageElement.src = `data:image/png;base64,${base64String}`
                 return imageElement
             }
 
@@ -729,7 +725,7 @@
                                 pElement.textContent = desc.text
                                 lineupDescElement.appendChild(pElement)
                             }
-                            lineupDescElement.appendChild(generateImgElement(desc.image.data))
+                            lineupDescElement.appendChild(generateImgElement(desc.image))
                         })
                     }).catch (err => {
                         console.log(err)
