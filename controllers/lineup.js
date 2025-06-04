@@ -1,181 +1,195 @@
 'use strict';
 
-const {wrap:async} = require('co');
-const mongoose = require('mongoose');
+const { createClient } = require('@supabase/supabase-js');
+const config = require('../config');
 
-const Lineup = mongoose.model('Lineup');
-const Map = mongoose.model('Map');
-const Hero = mongoose.model('Hero');
-const fastJson = require('fast-json-stringify');
+const supabase = createClient(config.supabaseUrl, config.supabaseKey);
 
-const stringifySchema = {
-  type: 'object',
-  properties: {
-  lineup: {
-    type: 'object',
-    properties: {
-      _id: { type: 'string'}, // ObjectId 的正则表达式模式
-      time: { type: 'integer' },
-      start: {
-        type: 'object',
-        properties: {
-          x: { type: 'number' },
-          y: { type: 'number' }
-        },
-        required: ['x', 'y']
-      },
-      end: {
-        type: 'object',
-        properties: {
-          x: { type: 'number' },
-          y: { type: 'number' }
-        },
-        required: ['x', 'y']
-      },
-      map: { type: 'string'}, // 假设这是对另一个文档的引用
-      hero: { type: 'string'}, // 同上
-      descs: {
-        type: 'array',
-        items: {
-          type: 'object',
-          properties: {
-            text: { type: 'string' },
-            image: {
-              type: 'string',
-              format: 'buffer-base64'
-            } // Buffer 将被转换成 base64 字符串
-          },
-          required: ['text', 'image'] // 如果在Mongoose中是必须的
-        }
-      },
-      skill: { type: 'string' },
-    }
-  }}};
-
-const stringify = fastJson(stringifySchema);
-
-const mapLineupResp = (lineup) => {
-  const { 
-    descs, 
-    ...rest
-  } = lineup
-
-  return {
-    descs: descs.map(item => ({
-      text: item.text, 
-      image: item.image.toString('base64'),
-    })),
-    ...rest
-  }
-}
-exports.get = async(function*(req, res) {
-    const lineupId = req.params.id;
-    try  {
-        const lineup = yield Lineup.load(lineupId)
-        const mappedLineUp = mapLineupResp(lineup)
-        res.status(200).send(stringify({lineup: mappedLineUp}))
-        // res.status(200).send({lineup: lineup})
-    } catch (err) {
-        console.log(err)
-        res.status(400).json({error: err.message})
-    }
-})
-
-exports.list = async(function*(req, res) {
+exports.get = async function(req, res) {
     try {
-        const query = {}
-        if (req.query.hero !== undefined) {
-            const heroRecord = yield Hero.findOne({name: req.query.hero})
-            query.hero = heroRecord._id;
+        const lineupId = req.params.id;
+
+        const { data: lineup, error: lineupError } = await supabase
+            .from('lineups')
+            .select(`
+                *,
+                hero:hero_id(name),
+                map:map_id(name)
+            `)
+            .eq('id', lineupId)
+            .single();
+
+        if (lineupError) throw lineupError;
+
+        const { data: descriptions, error: descError } = await supabase
+            .from('lineup_descriptions')
+            .select('*')
+            .eq('lineup_id', lineupId);
+
+        if (descError) throw descError;
+
+        const mappedLineup = {
+            ...lineup,
+            descs: descriptions.map(desc => ({
+                text: desc.text,
+                image: Buffer.from(desc.image).toString('base64')
+            }))
+        };
+
+        res.status(200).send({lineup: mappedLineup});
+    } catch (err) {
+        console.log(err);
+        res.status(400).json({error: err.message});
+    }
+};
+
+exports.list = async function(req, res) {
+    try {
+        let query = supabase
+            .from('lineups')
+            .select(`
+                *,
+                hero:hero_id(name),
+                map:map_id(name)
+            `);
+
+        if (req.query.hero) {
+            const { data: hero } = await supabase
+                .from('heroes')
+                .select('id')
+                .eq('name', req.query.hero)
+                .single();
+            if (hero) {
+                query = query.eq('hero_id', hero.id);
+            }
         }
-        if (req.query.map !== undefined) {
-            const mapRecord = yield Map.findOne({name: req.query.map})
-            query.map = mapRecord._id;
+
+        if (req.query.map) {
+            const { data: map } = await supabase
+                .from('maps')
+                .select('id')
+                .eq('name', req.query.map)
+                .single();
+            if (map) {
+                query = query.eq('map_id', map.id);
+            }
         }
-        if (req.query.skill !== undefined) {
-            query.skill = req.query.skill;
+
+        if (req.query.skill) {
+            query = query.eq('skill', req.query.skill);
         }
-        const lineups = yield Lineup.list(query);
+
+        const { data: lineups, error } = await query;
+
+        if (error) throw error;
+
         res.status(200).send({data: lineups});
-    } catch(err) {
-        console.log(err)
-        res.status(400).json({error: err.message})
-    }
-})
-
-exports.delete = async(function*(req, res) {
-    const lineupId = req.params.id;
-    
-    try {
-        const deletedLineup = yield Lineup.delete(lineupId)
-        res.status(200).json({lineup: deletedLineup})
-
     } catch (err) {
-        console.log(err)
-        res.status(400).json({error: err.message})
+        console.log(err);
+        res.status(400).json({error: err.message});
     }
-})
+};
 
-exports.create = async(function*(req, res) {
+exports.delete = async function(req, res) {
     try {
-        const  {
+        const lineupId = req.params.id;
+
+        const { data: deletedLineup, error } = await supabase
+            .from('lineups')
+            .delete()
+            .eq('id', lineupId)
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        res.status(200).json({lineup: deletedLineup});
+    } catch (err) {
+        console.log(err);
+        res.status(400).json({error: err.message});
+    }
+};
+
+exports.create = async function(req, res) {
+    try {
+        const {
             descs,
             start_point,
             end_point,
-            map,
-            hero,
+            map: mapName,
+            hero: heroName,
             skill,
-        } = req.body
+        } = req.body;
 
-        const images = req.files
+        const images = req.files;
 
-        const mapRecord = yield Map.findOne({name: map})
-        const heroRecord = yield Hero.findOne({name: hero})
+        // Get hero and map IDs
+        const { data: hero } = await supabase
+            .from('heroes')
+            .select('*')
+            .eq('name', heroName)
+            .single();
 
-        console.log("skill:", skill)
-        if (!heroRecord.hasSkill(skill)) {
-            throw (new Error(
-                `英雄技能组中没有${skill}`
-            ))
+        const { data: map } = await supabase
+            .from('maps')
+            .select('*')
+            .eq('name', mapName)
+            .single();
+
+        if (!hero || !map) {
+            throw new Error('Hero or map not found');
         }
 
-        let descArray = []
-        if (descs instanceof Array) {
-            descArray = descs
-        } else {
-            descArray.push(descs)
+        if (!hero.skills.includes(skill)) {
+            throw new Error(`Hero skill ${skill} not found`);
         }
 
-        const descsData = []
-        for (let i = 0; i < images.length; i++) {
-            console.log(images[i])
-            console.log(images[i].buffer)
-            descsData.push({
-                text: descArray[i],
-                image: images[i].buffer
-            })
-        }
+        // Create lineup
+        const { data: lineup, error: lineupError } = await supabase
+            .from('lineups')
+            .insert([{
+                hero_id: hero.id,
+                map_id: map.id,
+                skill,
+                start_x: start_point[0],
+                start_y: start_point[1],
+                end_x: end_point[0],
+                end_y: end_point[1]
+            }])
+            .select()
+            .single();
 
-        const newLineup = new Lineup({
-            start: {
-                x: start_point[0],
-                y: start_point[1]
-            },
-            end: {
-                x: end_point[0],
-                y: end_point[1]
-            },
-            map: mapRecord._id,
-            hero: heroRecord._id,
-            descs: descsData,
-            skill: skill,
-        })
-        yield newLineup.save();
-        res.status(200).json({message: 'Linup uploaded successfully', lineup:mapLineupResp(newLineup)})
+        if (lineupError) throw lineupError;
 
-    } catch (err){ 
-        console.log(err)
-        res.status(400).json({error: err.message})
+        // Create descriptions
+        let descArray = Array.isArray(descs) ? descs : [descs];
+        const descData = descArray.map((text, i) => ({
+            lineup_id: lineup.id,
+            text,
+            image: images[i].buffer
+        }));
+
+        const { data: descriptions, error: descError } = await supabase
+            .from('lineup_descriptions')
+            .insert(descData)
+            .select();
+
+        if (descError) throw descError;
+
+        const mappedLineup = {
+            ...lineup,
+            descs: descriptions.map(desc => ({
+                text: desc.text,
+                image: Buffer.from(desc.image).toString('base64')
+            }))
+        };
+
+        res.status(200).json({
+            message: 'Lineup uploaded successfully',
+            lineup: mappedLineup
+        });
+    } catch (err) {
+        console.log(err);
+        res.status(400).json({error: err.message});
     }
-})
-
+};

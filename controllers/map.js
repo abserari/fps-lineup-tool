@@ -1,31 +1,42 @@
 'use strict';
 
-const {wrap:async} = require('co');
-const mongoose = require('mongoose');
+const { createClient } = require('@supabase/supabase-js');
+const config = require('../config');
 
-const Map = mongoose.model('Map');
-const only = require('only');
+const supabase = createClient(config.supabaseUrl, config.supabaseKey);
 
-exports.list = async(function*(req, res) {
-    console.log(req.query);
-    const maps = yield Map.list(req.query);
-    res.status(200).send({data: maps});
-})
-
-exports.create = async(function*(req, res) {
+exports.list = async function(req, res) {
     try {
-        const { name } = req.body;
-        const imageBuffer = req.file.buffer;
-        console.log(name)
+        const { data: maps, error } = await supabase
+            .from('maps')
+            .select('*');
 
-        const newMap = new Map({
-            name: name,
-            image: imageBuffer
-        })
+        if (error) throw error;
 
-        yield newMap.save();
-        res.status(201).json({message: 'Map uploaded successfully', map: newMap});
+        res.status(200).send({data: maps});
     } catch (err) {
         res.status(500).json({error: err.message});
     }
-})
+};
+
+exports.create = async function(req, res) {
+    try {
+        const { name } = req.body;
+        const imageBuffer = req.file.buffer;
+
+        const { data: map, error } = await supabase
+            .from('maps')
+            .insert([{
+                name,
+                image: imageBuffer
+            }])
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        res.status(201).json({message: 'Map uploaded successfully', map});
+    } catch (err) {
+        res.status(500).json({error: err.message});
+    }
+};

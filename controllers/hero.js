@@ -1,41 +1,72 @@
 'use strict';
 
-const {wrap:async} = require('co');
+const { createClient } = require('@supabase/supabase-js');
+const config = require('../config');
 
-const mongoose = require('mongoose');
+const supabase = createClient(config.supabaseUrl, config.supabaseKey);
 
-const Hero = mongoose.model('Hero');
-const only = require('only');
-
-
-exports.index = async(function*(_, res) {
-    const heros = yield Hero.list();
-    res.status(200).send({data: heros});
-});
-
-exports.create = async(function*(req,res) {
-    console.log(req.body);
-    const hero = new Hero(only(req.body, "name"));
+exports.index = async function(_, res) {
     try {
-        yield hero.save();
-        res.status(200).send({data: hero});
-    } catch(err) {
-        res.status(400).send({error: err});
+        const { data: heroes, error } = await supabase
+            .from('heroes')
+            .select('*');
+
+        if (error) throw error;
+
+        res.status(200).send({data: heroes});
+    } catch (err) {
+        res.status(400).send({error: err.message});
     }
-})
+};
 
-exports.addSkill = async(function*(req, res) {
+exports.create = async function(req, res) {
     try {
-        const {hero, skill} = req.body;
-        const heroList = yield Hero.list({name: hero});
+        const { name } = req.body;
+        const { data: hero, error } = await supabase
+            .from('heroes')
+            .insert([{ name }])
+            .select()
+            .single();
 
-        if (heroList.length === 0) {
-            throw(new Error(`英雄 ${hero} 不存在`))
+        if (error) throw error;
+
+        res.status(200).send({data: hero});
+    } catch (err) {
+        res.status(400).send({error: err.message});
+    }
+};
+
+exports.addSkill = async function(req, res) {
+    try {
+        const { hero: heroName, skill } = req.body;
+        
+        // Get the hero first
+        const { data: heroes, error: heroError } = await supabase
+            .from('heroes')
+            .select('*')
+            .eq('name', heroName)
+            .single();
+
+        if (heroError) throw heroError;
+        if (!heroes) throw new Error(`Hero ${heroName} not found`);
+
+        const skills = heroes.skills || [];
+        if (skills.includes(skill)) {
+            throw new Error(`Skill ${skill} already exists`);
         }
 
-        yield heroList[0].addSkill(skill);
-        res.status(200).send({data: heroList[0]});
+        // Update the hero with the new skill
+        const { data: updatedHero, error } = await supabase
+            .from('heroes')
+            .update({ skills: [...skills, skill] })
+            .eq('id', heroes.id)
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        res.status(200).send({data: updatedHero});
     } catch (err) {
         res.status(400).json({error: err.message});
     }
-})
+};
